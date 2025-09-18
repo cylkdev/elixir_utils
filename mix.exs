@@ -3,7 +3,7 @@ defmodule BinBytetil.MixProject do
 
   def project do
     [
-      app: :bin_util,
+      app: :elixir_utils,
       version: "0.1.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
