@@ -1,96 +1,114 @@
 defmodule ElixirUtils.Binary do
   @moduledoc """
-  `ElixirUtils.Binary` provides utility functions for working with binary data
-  as bytes instead of characters (graphemes). The functions in
-  this API help to break binaries into chunks for further
-  processing.
+  `ElixirUtils.Binary` provides utility functions for working with
+  binary data as bytes instead of characters (graphemes).
   """
 
-  defguardp is_pos_integer(t) when is_integer(t) and t > 0
-  defguardp is_non_neg_integer(t) when is_integer(t) and t >= 0
+  @doc """
 
-  def chunk_bytes_stream(bin, size) when is_binary(bin) and is_pos_integer(size) do
-    Stream.resource(
-      fn -> bin end,
+  ### Examples
+
+      # the last item can be less than the target size
+      iex> "ABCDE" |> ElixirUtils.Binary.chunk_stream(2) |> Enum.to_list()
+      ["AB", "CD", "E"]
+
+      iex> ["ABCDEFG"] |> ElixirUtils.Binary.chunk_stream(3) |> Enum.to_list()
+      ["ABC", "DEF", "G"]
+
+      # handles binaries of arbitrary sizes
+      iex> ["A", "B", "CDEF"] |> ElixirUtils.Binary.chunk_stream(2) |> Enum.to_list()
+      ["AB", "CD", "EF"]
+
+      # handles binaries of arbitrary sizes
+      iex> ["A", "B", "CDEF"] |> ElixirUtils.Binary.chunk_stream(1) |> Enum.to_list()
+      ["A", "B", "C", "D", "E", "F"]
+  """
+  def chunk_stream(bin, size) when is_binary(bin) do
+    bin
+    |> split(0, size)
+    |> Tuple.to_list()
+    |> chunk_stream(size)
+  end
+
+  def chunk_stream(enum, size) when is_integer(size) and size > 0 do
+    enum
+    |> Stream.transform(
+      fn -> {[], 0} end,
       fn
-        <<>> ->
-          {:halt, nil}
-
-        bin ->
-          case chunk_bytes(bin, size) do
-            {[], rest} -> {[rest], <<>>}
-            {chunks, rest} -> {chunks, rest}
+        data, {buf, buf_size} when buf_size >= size ->
+          case buf |> combine() |> chunk_bytes(size) do
+            {items, <<>>} -> {items, {[data], byte_size(data)}}
+            {items, rest} -> {items, {[data, rest], byte_size(rest) + byte_size(data)}}
           end
+
+        data, {buf, buf_size} ->
+          {[], {[data | buf], buf_size + byte_size(data)}}
+      end,
+      fn {buf, _} ->
+        case buf |> combine() |> chunk_bytes(size) do
+          {items, <<>>} -> {items, nil}
+          {items, rest} -> {items ++ [rest], nil}
+        end
       end,
       fn _ -> :ok end
     )
   end
 
-  def chunk_bytes_stream(enum, size) when is_pos_integer(size) do
-    Stream.transform(
-      enum,
-      fn -> <<>> end,
-      fn
-        iodata, <<>> ->
-          bin = IO.iodata_to_binary(iodata)
-          chunk_bytes(bin, size)
-
-        bin, buf when is_binary(bin) ->
-          combined = <<buf::binary, bin::binary>>
-          chunk_bytes(combined, size)
-
-        iodata, buf ->
-          combined = IO.iodata_to_binary([buf, iodata])
-          chunk_bytes(combined, size)
-      end,
-      fn
-        <<>> -> {[], <<>>}
-        rest -> {[rest], <<>>}
-      end,
-      fn _ -> :ok end
-    )
+  defp combine(buf) do
+    buf |> Enum.reverse() |> :erlang.iolist_to_binary()
   end
 
   @doc """
-  Splits a binary into fixed-size chunks.
+  Splits a binary into chunks that are target_size in bytes.
 
   ## Examples
 
-      iex> ElixirUtils.Binary.chunk_bytes("abcd", 2)
-      {["ab"], "cd"}
+      iex> ElixirUtils.Binary.chunk_bytes("ABCD", 2)
+      {["AB"], "CD"}
 
-      iex> ElixirUtils.Binary.chunk_bytes("a", 2)
-      {[], "a"}
+      iex> ElixirUtils.Binary.chunk_bytes("ABCDE", 2)
+      {["AB", "CD"], "E"}
+
+      iex> ElixirUtils.Binary.chunk_bytes("A", 2)
+      {[], "A"}
+
+      iex> ElixirUtils.Binary.chunk_bytes("", 2)
+      {[], ""}
   """
-  def chunk_bytes(bin, size) when is_binary(bin) and is_pos_integer(size) do
-    traverse(
+  def chunk_bytes(bin, size) when is_binary(bin) do
+    transform(
       bin,
       size,
       [],
       fn fragment, acc -> [fragment | acc] end,
-      fn rest, acc -> {Enum.reverse(acc), rest} end
+      fn bin, acc -> {Enum.reverse(acc), bin} end
     )
   end
 
   @doc """
-  Traverses a binary, ensuring each fragment is at most the given size.
+  Transforms a binary, ensuring each fragment is at most the given size.
 
-  - `bin` is the binary input
-  - `size` is the max fragment size
-  - `acc` is the accumulator
-  - `reducer` is called for each full fragment
-  - `last_fun` is called once at the end with the final (possibly short) fragment and the acc
+  This function is used as the base for all transformations.
+  For example, the `chunk_bytes/2` function is implemented as:
 
-  It always returns `{emitted, rest_or_new_acc}` depending on `last_fun`.
+      target_size = 1
+      ElixirUtils.Binary.transform(
+        bin,
+        size,
+        [],
+        fn fragment, acc -> [fragment | acc] end,
+        fn bin, acc -> {Enum.reverse(acc), bin} end
+      )
+      {["h", "e", "l", "l", "o"], ""}
   """
-  def traverse(bin, size, acc, reducer, last_fun) when is_binary(bin) and is_pos_integer(size) do
-    case split(bin, 0, size) do
+  def transform(bin, target_size, acc, reducer, last_fun) when is_binary(bin) do
+    case split(bin, 0, target_size) do
       {fragment, <<>>} ->
         last_fun.(fragment, acc)
 
       {fragment, rest} ->
         next_acc = reducer.(fragment, acc)
-        traverse(rest, size, next_acc, reducer, last_fun)
+        transform(rest, target_size, next_acc, reducer, last_fun)
     end
   end
 
@@ -103,17 +121,16 @@ defmodule ElixirUtils.Binary do
 
   ## Examples
 
-      iex> ElixirUtils.Binary.split("abc", 0, 1)
-      {"a", "bc"}
+      iex> ElixirUtils.Binary.split("ABC", 0, 1)
+      {"A", "BC"}
 
-      iex> ElixirUtils.Binary.split("abc", 1, 1)
-      {"b", "c"}
+      iex> ElixirUtils.Binary.split("ABC", 1, 1)
+      {"B", "C"}
 
-      iex> ElixirUtils.Binary.split("abc", 0, 3)
-      {"abc", ""}
+      iex> ElixirUtils.Binary.split("ABC", 0, 3)
+      {"ABC", ""}
   """
-  def split(bin, start, length)
-      when is_binary(bin) and is_non_neg_integer(start) and is_pos_integer(length) do
+  def split(bin, start, length) when is_binary(bin) do
     total = byte_size(bin)
 
     if start >= total do
