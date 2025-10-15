@@ -1,6 +1,6 @@
-defmodule ElixirUtils.Binary do
+defmodule ElixirUtils.BinaryUtil do
   @moduledoc """
-  `ElixirUtils.Binary` provides utility functions for working with
+  `ElixirUtils.BinaryUtil` provides utility functions for working with
   binary data as bytes instead of characters (graphemes).
   """
 
@@ -9,18 +9,18 @@ defmodule ElixirUtils.Binary do
   ### Examples
 
       # the last item can be less than the target size
-      iex> "ABCDE" |> ElixirUtils.Binary.chunk_stream(2) |> Enum.to_list()
+      iex> "ABCDE" |> ElixirUtils.BinaryUtil.chunk_stream(2) |> Enum.to_list()
       ["AB", "CD", "E"]
 
-      iex> ["ABCDEFG"] |> ElixirUtils.Binary.chunk_stream(3) |> Enum.to_list()
+      iex> ["ABCDEFG"] |> ElixirUtils.BinaryUtil.chunk_stream(3) |> Enum.to_list()
       ["ABC", "DEF", "G"]
 
       # handles binaries of arbitrary sizes
-      iex> ["A", "B", "CDEF"] |> ElixirUtils.Binary.chunk_stream(2) |> Enum.to_list()
+      iex> ["A", "B", "CDEF"] |> ElixirUtils.BinaryUtil.chunk_stream(2) |> Enum.to_list()
       ["AB", "CD", "EF"]
 
       # handles binaries of arbitrary sizes
-      iex> ["A", "B", "CDEF"] |> ElixirUtils.Binary.chunk_stream(1) |> Enum.to_list()
+      iex> ["A", "B", "CDEF"] |> ElixirUtils.BinaryUtil.chunk_stream(1) |> Enum.to_list()
       ["A", "B", "C", "D", "E", "F"]
   """
   def chunk_stream(bin, size) when is_binary(bin) do
@@ -63,16 +63,16 @@ defmodule ElixirUtils.Binary do
 
   ## Examples
 
-      iex> ElixirUtils.Binary.chunk_bytes("ABCD", 2)
+      iex> ElixirUtils.BinaryUtil.chunk_bytes("ABCD", 2)
       {["AB"], "CD"}
 
-      iex> ElixirUtils.Binary.chunk_bytes("ABCDE", 2)
+      iex> ElixirUtils.BinaryUtil.chunk_bytes("ABCDE", 2)
       {["AB", "CD"], "E"}
 
-      iex> ElixirUtils.Binary.chunk_bytes("A", 2)
+      iex> ElixirUtils.BinaryUtil.chunk_bytes("A", 2)
       {[], "A"}
 
-      iex> ElixirUtils.Binary.chunk_bytes("", 2)
+      iex> ElixirUtils.BinaryUtil.chunk_bytes("", 2)
       {[], ""}
   """
   def chunk_bytes(bin, size) when is_binary(bin) do
@@ -92,7 +92,7 @@ defmodule ElixirUtils.Binary do
   For example, the `chunk_bytes/2` function is implemented as:
 
       target_size = 1
-      ElixirUtils.Binary.transform(
+      ElixirUtils.BinaryUtil.transform(
         bin,
         size,
         [],
@@ -121,13 +121,13 @@ defmodule ElixirUtils.Binary do
 
   ## Examples
 
-      iex> ElixirUtils.Binary.split("ABC", 0, 1)
+      iex> ElixirUtils.BinaryUtil.split("ABC", 0, 1)
       {"A", "BC"}
 
-      iex> ElixirUtils.Binary.split("ABC", 1, 1)
+      iex> ElixirUtils.BinaryUtil.split("ABC", 1, 1)
       {"B", "C"}
 
-      iex> ElixirUtils.Binary.split("ABC", 0, 3)
+      iex> ElixirUtils.BinaryUtil.split("ABC", 0, 3)
       {"ABC", ""}
   """
   def split(bin, start, length) when is_binary(bin) do

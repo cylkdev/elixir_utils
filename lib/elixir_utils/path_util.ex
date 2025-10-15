@@ -1,10 +1,10 @@
-defmodule ElixirUtils.Path do
+defmodule ElixirUtils.PathUtil do
   @doc """
   Returns all extensions after the basename.
 
   ### Examples
 
-      iex> ElixirUtils.Path.extname("example.zip.gz")
+      iex> ElixirUtils.PathUtil.extname("example.zip.gz")
       ".zip.gz"
   """
   def extname(path) do
